@@ -140,33 +140,33 @@ function CustomerList({
         <div className="quick-filters">
           <button 
             className="quick-filter-btn"
-            onClick={() => onFilterChange({ search: '', orderCount: '', lastOrderDays: '30', minSpent: '', maxSpent: '', maxOrders: '' })}
-          >
-            🔄 Win-back (30+ days inactive)
-          </button>
-          <button 
-            className="quick-filter-btn"
-            onClick={() => onFilterChange({ search: '', orderCount: '', lastOrderDays: '90', minSpent: '', maxSpent: '', maxOrders: '' })}
-          >
-            ⚠️ At Risk (90+ days inactive)
-          </button>
-          <button 
-            className="quick-filter-btn"
-            onClick={() => onFilterChange({ search: '', orderCount: '5', lastOrderDays: '', minSpent: '', maxSpent: '', maxOrders: '' })}
-          >
-            ⭐ VIP Customers (5+ orders)
-          </button>
-          <button 
-            className="quick-filter-btn"
             onClick={() => onFilterChange({ search: '', orderCount: '1', lastOrderDays: '', minSpent: '', maxSpent: '', maxOrders: '1' })}
           >
-            🆕 One-time Buyers
+            🆕 New Customers (1 order)
+          </button>
+          <button 
+            className="quick-filter-btn"
+            onClick={() => onFilterChange({ search: '', orderCount: '', lastOrderDays: '60', minSpent: '', maxSpent: '', maxOrders: '' })}
+          >
+            🔄 Winback (60+ days inactive)
+          </button>
+          <button 
+            className="quick-filter-btn"
+            onClick={() => onFilterChange({ search: '', orderCount: '5', lastOrderDays: '', minSpent: '500', maxSpent: '', maxOrders: '' })}
+          >
+            ⭐ VIP Customers (5+ orders, $500+)
           </button>
           <button 
             className="quick-filter-btn"
             onClick={() => onFilterChange({ search: '', orderCount: '10', lastOrderDays: '', minSpent: '', maxSpent: '', maxOrders: '' })}
           >
             💎 Loyalists (10+ orders)
+          </button>
+          <button 
+            className="quick-filter-btn"
+            onClick={() => onFilterChange({ search: '', orderCount: '', lastOrderDays: '90', minSpent: '', maxSpent: '', maxOrders: '' })}
+          >
+            ⚠️ At Risk (90+ days inactive)
           </button>
           <button 
             className="quick-filter-btn"

@@ -18,26 +18,17 @@ load_dotenv()
 app = Flask(__name__)
 
 # Configure CORS - Allow requests from frontend
-CORS(
-    app,
-    resources={r"/api/*": {"origins": [
-        "http://localhost:3000",
-        "https://ceo-outreach-tool.onrender.com",
-        "https://ceo-outreach-frontend.onrender.com"
-    ]}},
-    methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization"],
+CORS(app, 
+     origins=[
+         'http://localhost:3000',
+         'http://localhost:5001', 
+         'https://ceo-outreach-tool.onrender.com',
+         'https://ceo-outreach-frontend.onrender.com'
+     ],
+     supports_credentials=False,
+     allow_headers=['Content-Type'],
+     methods=['GET', 'POST', 'OPTIONS']
 )
-
-@app.before_request
-def handle_preflight():
-    if request.method == "OPTIONS":
-        response = app.make_response("")
-        response.headers["Access-Control-Allow-Origin"] = request.headers.get("Origin", "*")
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-        return response
-
 
 # Configuration
 SHOPIFY_API_KEY = os.environ.get('SHOPIFY_API_KEY')
@@ -119,61 +110,49 @@ def shopify_request(endpoint):
 
 # Email templates
 EMAIL_TEMPLATES = {
-    'comeback': {
-        'name': 'Come Back to Us',
-        'subject': 'We Miss You, {first_name}!',
+    'new_customer': {
+        'name': 'New Customers',
+        'subject': 'Thank You for Choosing SPATULA',
         'body': '''Hi {first_name},
 
-We noticed it's been a while since your last order with us. We'd love to have you back!
+I wanted to thank you personally for giving SPATULA a try. It means a lot to us to have you here.
 
-As a valued customer, we wanted to reach out personally and let you know we're here if you need anything.
+We started SPATULA to make mealtime easier and a lot more delicious for busy people who still care about good food. If you have a moment, I would love to hear what made you choose us. Your feedback really helps us make SPATULA even better.
 
-Best regards,
-[Your Company]'''
+If there is ever anything we can do from our side to make your experience even better, please don't hesitate to let us know.
+
+Thank you for welcoming us into your kitchen!'''
     },
-    'thankyou': {
-        'name': 'Thank You',
-        'subject': 'Thank You for Being With Us, {first_name}!',
+    'winback_60': {
+        'name': 'Winback Customers - 60 days',
+        'subject': 'Welcome Back to SPATULA',
         'body': '''Hi {first_name},
 
-We wanted to take a moment to thank you for being a loyal customer since {customer_since}.
+I wanted to reach out and say thank you for your recent order. It is great to have you back with us!
 
-Your support means everything to us, and we're grateful to have you as part of our community.
+At SPATULA, we are always working to make mealtime easier and more delicious, and it means a lot when customers return after some time away. If you have a moment, I would love to hear what brought you back. Your feedback really helps us make SPATULA even better.
 
-Best regards,
-[Your Company]'''
+If there is ever anything we can do from our side to make your experience even better, please don't hesitate to let us know.
+
+Thanks again for having us back in your kitchen!'''
     },
-    'special_offer': {
-        'name': 'Special Offer',
-        'subject': 'Exclusive Offer Just for You, {first_name}!',
+    'gift_card': {
+        'name': 'Gifting Customers - Gift Card',
+        'subject': 'Thank You for Gifting SPATULA',
         'body': '''Hi {first_name},
 
-As one of our valued customers, we wanted to share an exclusive offer with you.
+I wanted to personally thank you for choosing to gift SPATULA. It truly means a lot to us that you thought of us for such a special gesture.
 
-[Include your special offer details here]
+We started SPATULA to make mealtime easier—and a lot more delicious—for busy people who still care about good food. That's why we're always so touched when someone chooses to share it with someone else.
 
-This is our way of saying thank you for your continued support.
+If you have a moment, I'd love to hear what inspired the gift—what was the occasion, and what made you choose us? Your story helps us understand what moments we're a part of and how we can make them even better.
 
-Best regards,
-[Your Company]'''
-    },
-    'feedback': {
-        'name': 'Request Feedback',
-        'subject': 'We\'d Love Your Feedback, {first_name}',
-        'body': '''Hi {first_name},
-
-Your opinion matters to us! We'd love to hear about your experience with our products.
-
-Could you take a moment to share your thoughts? Your feedback helps us serve you better.
-
-Best regards,
-[Your Company]'''
+As always, if there's anything we can do to improve your experience (or theirs), don't hesitate to reach out.'''
     }
 }
 
 @app.route('/api/customers', methods=['GET'])
 def get_customers():
-    cached_data = None
     """Fetch customers from Shopify with marketing-focused filters"""
     try:
         # Get filter parameters from query string

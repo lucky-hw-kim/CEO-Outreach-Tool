@@ -3,10 +3,9 @@ import React from 'react';
 function TemplateSelector({ templates, selectedTemplate, onSelectTemplate }) {
   
   const templateDescriptions = {
-    'comeback': 'Perfect for customers who haven\'t purchased in a while. Warm and welcoming tone.',
-    'thankyou': 'Express gratitude to loyal customers. Great for building relationships.',
-    'special_offer': 'Share exclusive deals with valued customers. Encourage repeat purchases.',
-    'feedback': 'Request customer opinions and reviews. Show you value their input.'
+    'new_customer': 'Welcome first-time customers and thank them for choosing SPATULA.',
+    'winback_60': 'Re-engage customers who haven\'t ordered in 60+ days with a warm welcome back.',
+    'gift_card': 'Thank customers who purchased gift cards and share the love of SPATULA.'
   };
 
   return (
