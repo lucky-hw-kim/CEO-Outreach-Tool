@@ -16,7 +16,19 @@ import json
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app)
+
+# Configure CORS - Allow requests from frontend
+CORS(app, 
+     origins=[
+         'http://localhost:3000',
+         'http://localhost:5001', 
+         'https://ceo-outreach-tool.onrender.com',
+         'https://ceo-outreach-frontend.onrender.com'
+     ],
+     supports_credentials=False,
+     allow_headers=['Content-Type'],
+     methods=['GET', 'POST', 'OPTIONS']
+)
 
 # Configuration
 SHOPIFY_API_KEY = os.environ.get('SHOPIFY_API_KEY')
@@ -28,7 +40,7 @@ import time
 from functools import wraps
 
 # Cache configuration
-CACHE_TTL = 43200 # Cache for 1 hour (3600 seconds)
+CACHE_TTL = 43200  # Cache for 12 hours (43200 seconds)
 customer_cache = {
     'data': None,
     'timestamp': None
@@ -199,10 +211,14 @@ def get_customers():
             # Apply search filter
             if search:
                 search_lower = search.lower()
+                first_name = (customer.get('first_name') or '').lower()
+                last_name = (customer.get('last_name') or '').lower()
+                email_lower = (email or '').lower()
+                
                 if not (
-                    (customer.get('first_name', '').lower().find(search_lower) >= 0) or
-                    (customer.get('last_name', '').lower().find(search_lower) >= 0) or
-                    (email.lower().find(search_lower) >= 0)
+                    (first_name.find(search_lower) >= 0) or
+                    (last_name.find(search_lower) >= 0) or
+                    (email_lower.find(search_lower) >= 0)
                 ):
                     continue
             
@@ -266,7 +282,7 @@ def get_customers():
             )
         elif sort_by == 'name':
             customer_data.sort(
-                key=lambda x: (x['first_name'] + x['last_name']).lower(),
+                key=lambda x: ((x.get('first_name') or '') + (x.get('last_name') or '')).lower(),
                 reverse=(sort_order == 'desc')
             )
         
