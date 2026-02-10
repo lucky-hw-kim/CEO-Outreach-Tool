@@ -173,6 +173,7 @@ Best regards,
 
 @app.route('/api/customers', methods=['GET'])
 def get_customers():
+    cached_data = None
     """Fetch customers from Shopify with marketing-focused filters"""
     try:
         # Get filter parameters from query string
