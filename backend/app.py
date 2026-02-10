@@ -18,16 +18,15 @@ load_dotenv()
 app = Flask(__name__)
 
 # Configure CORS - Allow requests from frontend
-CORS(app, 
-     origins=[
-         'http://localhost:3000',
-         'http://localhost:5001', 
-         'https://ceo-outreach-tool.onrender.com',
-         'https://ceo-outreach-frontend.onrender.com'
-     ],
-     supports_credentials=False,
-     allow_headers=['Content-Type'],
-     methods=['GET', 'POST', 'OPTIONS']
+CORS(
+    app,
+    resources={r"/api/*": {"origins": [
+        "http://localhost:3000",
+        "https://ceo-outreach-tool.onrender.com",
+        "https://ceo-outreach-frontend.onrender.com"
+    ]}},
+    methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 # Configuration
