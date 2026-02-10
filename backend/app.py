@@ -29,6 +29,16 @@ CORS(
     allow_headers=["Content-Type", "Authorization"],
 )
 
+@app.before_request
+def handle_preflight():
+    if request.method == "OPTIONS":
+        response = app.make_response("")
+        response.headers["Access-Control-Allow-Origin"] = request.headers.get("Origin", "*")
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+        return response
+
+
 # Configuration
 SHOPIFY_API_KEY = os.environ.get('SHOPIFY_API_KEY')
 SHOPIFY_PASSWORD = os.environ.get('SHOPIFY_PASSWORD')
