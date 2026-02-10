@@ -164,23 +164,23 @@ def get_customers():
         days_since_order = request.args.get('days_since_order', None)
         sort_by = request.args.get('sort_by', 'last_order_date')
         sort_order = request.args.get('sort_order', 'desc')
-        force_refresh = request.args.get('refresh', 'false').lower() == 'true'
-        
-        # Check cache first (unless force refresh)
-        if not force_refresh:
-            cached_data = get_cached_customers()
-            if cached_data is not None:
-                all_customers = cached_data
-                print(f"Using {len(all_customers)} customers from cache")
-            else:
-                # Fetch from Shopify
-                all_customers = fetch_all_customers_from_shopify()
-                cache_customers(all_customers)
-        else:
-            print("Force refresh requested, bypassing cache")
-            all_customers = fetch_all_customers_from_shopify()
-            cache_customers(all_customers)
-        
+
+        cached_data = get_cached_customers()
+
+        if cached_data is None:
+            return jsonify({
+                'customers': [],
+                'success': True,
+                'count': 0,
+                'total_customers': 0,
+                'from_cache': False,
+                'cache_empty': True,
+                'message': 'Cache is warming. Please refresh shortly.'
+            })
+
+        all_customers = cached_data
+
+
         # Now filter the customers
         customer_data = []
         current_date = datetime.now()
@@ -191,7 +191,7 @@ def get_customers():
             total_spent = float(customer.get('total_spent', 0))
             email = customer.get('email', '')
             created_at = customer.get('created_at')
-            last_order_date = customer.get('updated_at')
+            last_order_date = customer.get('last_order_name')
             
             # Skip if no email (can't do outreach)
             if not email:
@@ -247,7 +247,7 @@ def get_customers():
                 'first_name': customer.get('first_name', ''),
                 'last_name': customer.get('last_name', ''),
                 'order_count': order_count,
-                'last_order_date': last_order_date,
+                'last_activity_date': last_order_date,
                 'customer_since': created_at,
                 'total_spent': total_spent,
                 'days_since_last_order': days_since_last_order
@@ -289,7 +289,7 @@ def get_customers():
             'total_customers': len(all_customers),
             'cache_age': cache_age,
             'cache_ttl': CACHE_TTL,
-            'from_cache': not force_refresh and cached_data is not None,
+            'from_cache': True,
             'filters_applied': {
                 'search': search,
                 'min_orders': min_orders,
@@ -307,7 +307,10 @@ def get_customers():
 def fetch_all_customers_from_shopify():
     """Fetch all customers from Shopify with pagination"""
     all_customers = []
-    url = 'customers.json?limit=250'
+    url = (
+    'customers.json?limit=250'
+    '&fields=id,email,first_name,last_name,orders_count,total_spent,created_at,updated_at'
+)
     page_count = 0
     
     print(f"Starting to fetch customers from Shopify...")
@@ -343,6 +346,24 @@ def fetch_all_customers_from_shopify():
     
     print(f"Finished fetching. Total customers with orders: {len(all_customers)}")
     return all_customers
+
+@app.route('/api/customers/refresh', methods=['POST'])
+def refresh_customers():
+    try:
+        print("Refreshing customer cache from Shopify...")
+        customers = fetch_all_customers_from_shopify()
+        cache_customers(customers)
+
+        return jsonify({
+            'success': True,
+            'total_customers': len(customers)
+        })
+    except Exception as e:
+        print(f"Refresh failed: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 @app.route('/api/templates', methods=['GET'])
 def get_templates():
