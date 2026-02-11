@@ -1,8 +1,9 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 import os
 from datetime import datetime, timedelta
 import requests
+import traceback
 from dotenv import load_dotenv
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
@@ -61,6 +62,14 @@ gift_card_customer_cache = {
     'timestamp': None
 }
 
+
+@app.route('/api/debug/ping', methods=['GET'])
+def debug_ping():
+    print("DEBUG PING HIT", flush=True)
+    return jsonify({
+        "ok": True,
+        "has_gmail_creds": bool(os.environ.get("GMAIL_CREDENTIALS") or os.environ.get("GMAIL_CREDENTIALS_B64")),
+    })
 
 def get_cached_gift_card_customers():
     if gift_card_customer_cache['customer_ids'] and (time.time() - gift_card_customer_cache['timestamp'] < CACHE_TTL):
@@ -469,7 +478,9 @@ def preview_template():
 @app.route('/api/create-drafts', methods=['POST'])
 def create_drafts():
     """Create Gmail drafts for selected customers"""
+    print("CREATE-DRAFTS HIT", flush=True)
     data = request.json
+    print("payload keys:", list((data or {}).keys()), flush=True)
     template_id = data.get('template_id')
     customers = data.get('customers', [])
     boss_email = data.get('boss_email')
