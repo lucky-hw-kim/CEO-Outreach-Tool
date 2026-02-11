@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './styles/App.css';
 import CustomerList from './components/CustomerList';
 import TemplateSelector from './components/TemplateSelector';
@@ -8,6 +8,7 @@ import * as api from './services/api';
 
 const SENDER_EMAIL = "hello@spatulafoods.com";
 function App() {
+  const didMountRef = useRef(false);
   const [customers, setCustomers] = useState([]);
   const [filteredCustomers, setFilteredCustomers] = useState([]);
   const [selectedCustomers, setSelectedCustomers] = useState([]);
@@ -37,14 +38,18 @@ function App() {
   }, []);
 
   // Debounce filter changes to avoid too many API calls
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      loadData();
-    }, 500); // Wait 500ms after user stops typing
-    
-    return () => clearTimeout(timeoutId);
-  }, [filters, sortBy, sortOrder]);
+useEffect(() => {
+  if (!didMountRef.current) {
+    didMountRef.current = true;
+    return;
+  }
 
+  const timeoutId = setTimeout(() => {
+    loadData(false);
+  }, 500);
+
+  return () => clearTimeout(timeoutId);
+}, [filters, sortBy, sortOrder]);
   const loadData = async (forceRefresh = false) => {
   try {
     setLoading(true);
@@ -57,22 +62,25 @@ function App() {
       min_spent: filters.minSpent || undefined,
       max_spent: filters.maxSpent || undefined,
       days_since_order: filters.lastOrderDays || undefined,
-      purchased_gift_card: filters.purchasedGiftCard || undefined,
+
+      // ✅ always explicit strings
+      purchased_gift_card: String(!!filters.purchasedGiftCard),
+
       sort_by: sortBy,
       sort_order: sortOrder,
     };
 
-    // ✅ ADD THESE TWO LINES HERE
-    if (filters.winback) apiFilters.winback = 'true';
-    if (filters.winbackDays) apiFilters.winback_days = filters.winbackDays;
+    if (filters.winback) {
+      apiFilters.winback = 'true';
+      apiFilters.winback_days = String(filters.winbackDays || 60);
+    }
 
     const customersResponse = await api.getCustomers(apiFilters);
 
-    if (customersResponse.cache_info) {
-      setCacheInfo(customersResponse.cache_info);
-    }
+    if (customersResponse.cache_info) setCacheInfo(customersResponse.cache_info);
 
-    setCustomers(customersResponse.customers || customersResponse);
+    setCustomers(customersResponse.customers || []);
+    setFilteredCustomers(customersResponse.customers || []);
 
     if (templates.length === 0) {
       const templatesData = await api.getTemplates();
@@ -86,6 +94,9 @@ function App() {
     setLoading(false);
   }
 };
+
+
+
 
   const handleRefresh = () => {
     loadData(true); // Force refresh from Shopify
