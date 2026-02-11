@@ -50,7 +50,7 @@ function EmailPreview({ template, customers, bossEmail, onBossEmailChange }) {
         <input
           type="email"
           placeholder="hello@spatulafoods.com"
-          value={bossEmail}
+          value="hello@spatulafoods.com"
           onChange={(e) => onBossEmailChange(e.target.value)}
           className="boss-email-input"
         />

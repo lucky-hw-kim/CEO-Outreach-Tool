@@ -8,6 +8,7 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+from google.auth.transport.requests import Request
 from email.mime.text import MIMEText
 import base64
 import json
@@ -474,7 +475,7 @@ def create_drafts():
     boss_email = data.get('boss_email')
     
     if not boss_email:
-        return jsonify({'error': 'Boss email is required', 'success': False}), 400
+        return jsonify({'error': 'Sender email is required', 'success': False}), 400
     
     if template_id not in EMAIL_TEMPLATES:
         return jsonify({'error': 'Template not found', 'success': False}), 404
@@ -485,12 +486,23 @@ def create_drafts():
         if GMAIL_CREDENTIALS:
             creds_data = json.loads(GMAIL_CREDENTIALS)
             creds = Credentials.from_authorized_user_info(creds_data)
-        
+
+        # refresh if possible
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+            print("Refreshed token OK")
+
         if not creds or not creds.valid:
             return jsonify({
-                'error': 'Gmail authentication required. Please authenticate first.',
+                'error': 'Gmail authentication required.',
                 'success': False,
-                'auth_required': True
+                'auth_required': True,
+                'debug': {
+                    'expired': getattr(creds, 'expired', None),
+                    'has_refresh_token': bool(getattr(creds, 'refresh_token', None)),
+                    'token_uri': getattr(creds, 'token_uri', None),
+                    'scopes': getattr(creds, 'scopes', None),
+                }
             }), 401
         
         service = build('gmail', 'v1', credentials=creds)
