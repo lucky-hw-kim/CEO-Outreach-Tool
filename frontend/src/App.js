@@ -23,6 +23,8 @@ function App() {
     minSpent: '',
     maxSpent: '',
     search: '',
+    winback: false,
+    winbackDays: 60,
     purchasedGiftCard: false
   });
   const [sortBy, setSortBy] = useState('last_order_date');
@@ -44,45 +46,46 @@ function App() {
   }, [filters, sortBy, sortOrder]);
 
   const loadData = async (forceRefresh = false) => {
-    try {
-      setLoading(true);
-      
-      // Build filter object for API
-      const apiFilters = {
-        search: filters.search || undefined,
-        min_orders: filters.orderCount || undefined,
-        max_orders: filters.maxOrders || undefined,
-        min_spent: filters.minSpent || undefined,
-        max_spent: filters.maxSpent || undefined,
-        days_since_order: filters.lastOrderDays || undefined,
-        purchased_gift_card: filters.purchasedGiftCard || undefined,
-        sort_by: sortBy,
-        sort_order: sortOrder,
-        refresh: forceRefresh ? 'true' : 'false'
-      };
-      
-      const customersResponse = await api.getCustomers(apiFilters);
-      
-      // Extract cache info from response
-      if (customersResponse.cache_info) {
-        setCacheInfo(customersResponse.cache_info);
-      }
-      
-      setCustomers(customersResponse.customers || customersResponse);
-      setFilteredCustomers(customersResponse.customers || customersResponse);
-      
-      if (templates.length === 0) {
-        const templatesData = await api.getTemplates();
-        setTemplates(templatesData);
-      }
-      
-      setError(null);
-    } catch (err) {
-      setError('Failed to load data: ' + err.message);
-    } finally {
-      setLoading(false);
+  try {
+    setLoading(true);
+
+    const apiFilters = {
+      refresh: forceRefresh ? 'true' : 'false',
+      search: filters.search || undefined,
+      min_orders: filters.orderCount || undefined,
+      max_orders: filters.maxOrders || undefined,
+      min_spent: filters.minSpent || undefined,
+      max_spent: filters.maxSpent || undefined,
+      days_since_order: filters.lastOrderDays || undefined,
+      purchased_gift_card: filters.purchasedGiftCard || undefined,
+      sort_by: sortBy,
+      sort_order: sortOrder,
+    };
+
+    // ✅ ADD THESE TWO LINES HERE
+    if (filters.winback) apiFilters.winback = 'true';
+    if (filters.winbackDays) apiFilters.winback_days = filters.winbackDays;
+
+    const customersResponse = await api.getCustomers(apiFilters);
+
+    if (customersResponse.cache_info) {
+      setCacheInfo(customersResponse.cache_info);
     }
-  };
+
+    setCustomers(customersResponse.customers || customersResponse);
+
+    if (templates.length === 0) {
+      const templatesData = await api.getTemplates();
+      setTemplates(templatesData);
+    }
+
+    setError(null);
+  } catch (err) {
+    setError('Failed to load data: ' + err.message);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleRefresh = () => {
     loadData(true); // Force refresh from Shopify
@@ -170,13 +173,12 @@ const handleCreateDrafts = async () => {
         <div className="header-content">
           <div>
             <h1>CEO Customer Outreach Tool</h1>
-            <p className="subtitle">Select customers and create personalized email drafts</p>
           </div>
           {cacheInfo && (
             <div className="cache-info">
               {cacheInfo.from_cache ? (
                 <>
-                  <span className="cache-status">📦 Using cached data</span>
+                  <span className="cache-status">Using cached data</span>
                   <span className="cache-age">
                     {cacheInfo.cache_age < 60 
                       ? `${cacheInfo.cache_age}s ago` 

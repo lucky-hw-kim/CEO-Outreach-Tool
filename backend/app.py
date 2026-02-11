@@ -61,6 +61,11 @@ gift_card_customer_cache = {
     'customer_ids': None,
     'timestamp': None
 }
+winback_gap_cache = {
+    "data": None,       # dict: {customer_id: gap_days}
+    "timestamp": None
+}
+WINBACK_CACHE_TTL = 43200  # 12h
 
 
 @app.route('/api/debug/ping', methods=['GET'])
@@ -100,6 +105,81 @@ def cache_customers(data):
     customer_cache['data'] = data
     customer_cache['timestamp'] = time.time()
     print(f"Cached {len(data)} customers")
+
+
+def get_winback_gaps():
+    """
+    Returns dict {customer_id: gap_days} where gap_days is the number of days
+    between the customer's most recent order and the order before it.
+    Only includes customers with >= 2 orders.
+    """
+    if winback_gap_cache["data"] and winback_gap_cache["timestamp"]:
+        if time.time() - winback_gap_cache["timestamp"] < WINBACK_CACHE_TTL:
+            return winback_gap_cache["data"]
+
+    print("Computing winback gaps from Shopify orders...", flush=True)
+
+    gaps = {}
+    # We only need customer + created_at, so keep fields small
+    endpoint = "orders.json?status=any&limit=250&fields=customer,created_at"
+    url = endpoint
+
+    # For each customer, track latest + second latest order dates
+    latest = {}   # {customer_id: datetime}
+    second = {}   # {customer_id: datetime}
+
+    while url:
+        response = shopify_request_with_retry(url)
+        data = response.json()
+        orders = data.get("orders", [])
+
+        for order in orders:
+            cust = order.get("customer")
+            if not cust or not cust.get("id"):
+                continue
+            cid = cust["id"]
+
+            created_at = order.get("created_at")
+            if not created_at:
+                continue
+            try:
+                dt = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+            except Exception:
+                continue
+
+            # Update top-2 most recent
+            cur_latest = latest.get(cid)
+            if cur_latest is None or dt > cur_latest:
+                # shift latest -> second
+                if cur_latest is not None:
+                    second[cid] = cur_latest
+                latest[cid] = dt
+            else:
+                cur_second = second.get(cid)
+                if cur_second is None or dt > cur_second:
+                    second[cid] = dt
+
+        # pagination
+        link_header = response.headers.get("Link", "")
+        url = None
+        if 'rel="next"' in link_header:
+            import re
+            match = re.search(r'<https://[^>]+/admin/api/[^>]+/orders\.json\?([^>]+)>; rel="next"', link_header)
+            if match:
+                url = f"orders.json?{match.group(1)}"
+                time.sleep(0.5)
+
+    # Build gaps
+    for cid in latest:
+        if cid in second:
+            gap = (latest[cid] - second[cid]).days
+            gaps[cid] = gap
+
+    winback_gap_cache["data"] = gaps
+    winback_gap_cache["timestamp"] = time.time()
+
+    print(f"Winback gaps computed for {len(gaps)} customers", flush=True)
+    return gaps
 
 # Shopify API helpers
 def get_shopify_headers():
@@ -241,7 +321,9 @@ def get_customers():
         sort_by = request.args.get('sort_by', 'last_order_date')
         sort_order = request.args.get('sort_order', 'desc')
         force_refresh = request.args.get('refresh', 'false').lower() == 'true'
-        
+        winback = request.args.get('winback', 'false').lower() == 'true'
+        winback_days = int(request.args.get('winback_days', 60))
+
         # Check cache first (unless force refresh)
         if not force_refresh:
             cached_data = get_cached_customers()
@@ -324,6 +406,11 @@ def get_customers():
             if purchased_gift_card:
                 gift_card_customer_ids = get_customers_who_purchased_gift_card()
                 if customer_id not in gift_card_customer_ids:
+                    continue
+            if winback:
+                gaps = get_winback_gaps()
+                gap_days = gaps.get(customer_id)  # None if <2 orders
+                if gap_days is None or gap_days < winback_days:
                     continue
             
             customer_info = {

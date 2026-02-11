@@ -1,25 +1,24 @@
 import React from 'react';
 
-function CustomerList({ 
-  customers, 
-  selectedCustomers, 
-  onSelectCustomer, 
+function CustomerList({
+  customers,
+  selectedCustomers,
+  onSelectCustomer,
   onSelectAll,
   filters,
   onFilterChange,
   sortBy,
   onSortByChange,
   sortOrder,
-  onSortOrderChange
+  onSortOrderChange,
 }) {
-  
   const formatDate = (dateString) => {
     if (!dateString) return 'Never';
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric' 
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
     });
   };
 
@@ -32,8 +31,13 @@ function CustomerList({
     return diffDays;
   };
 
+  // Always merge into existing filters (prevents wiping winback fields)
+  const setFiltersPartial = (patch) => {
+    onFilterChange({ ...filters, ...patch });
+  };
+
   const handleFilterChange = (key, value) => {
-    onFilterChange({ ...filters, [key]: value });
+    setFiltersPartial({ [key]: value });
   };
 
   const toggleSortOrder = () => {
@@ -44,14 +48,14 @@ function CustomerList({
     <div className="customer-list-container">
       <div className="filters-section">
         <h2>Filter & Sort Customers</h2>
-        
+
         <div className="filters-grid">
           <div className="filter-group">
             <label>Search</label>
             <input
               type="text"
               placeholder="Search by name or email..."
-              value={filters.search}
+              value={filters.search || ''}
               onChange={(e) => handleFilterChange('search', e.target.value)}
             />
           </div>
@@ -61,18 +65,18 @@ function CustomerList({
             <input
               type="number"
               placeholder="e.g., 5"
-              value={filters.orderCount}
+              value={filters.orderCount || ''}
               onChange={(e) => handleFilterChange('orderCount', e.target.value)}
               min="0"
             />
           </div>
-          
+
           <div className="filter-group">
             <label>Maximum Orders</label>
             <input
               type="number"
               placeholder="e.g., 50"
-              value={filters.maxOrders}
+              value={filters.maxOrders || ''}
               onChange={(e) => handleFilterChange('maxOrders', e.target.value)}
               min="0"
             />
@@ -83,30 +87,30 @@ function CustomerList({
             <input
               type="number"
               placeholder="e.g., 30"
-              value={filters.lastOrderDays}
+              value={filters.lastOrderDays || ''}
               onChange={(e) => handleFilterChange('lastOrderDays', e.target.value)}
               min="0"
             />
           </div>
-          
+
           <div className="filter-group">
             <label>Min. Total Spent ($)</label>
             <input
               type="number"
               placeholder="e.g., 100"
-              value={filters.minSpent}
+              value={filters.minSpent || ''}
               onChange={(e) => handleFilterChange('minSpent', e.target.value)}
               min="0"
               step="0.01"
             />
           </div>
-          
+
           <div className="filter-group">
             <label>Max. Total Spent ($)</label>
             <input
               type="number"
               placeholder="e.g., 1000"
-              value={filters.maxSpent}
+              value={filters.maxSpent || ''}
               onChange={(e) => handleFilterChange('maxSpent', e.target.value)}
               min="0"
               step="0.01"
@@ -116,20 +120,18 @@ function CustomerList({
           <div className="filter-group">
             <label>Sort By</label>
             <div className="sort-controls">
-              <select 
-                value={sortBy} 
-                onChange={(e) => onSortByChange(e.target.value)}
-              >
+              <select value={sortBy} onChange={(e) => onSortByChange(e.target.value)}>
                 <option value="last_order_date">Last Order Date</option>
                 <option value="order_count">Number of Orders</option>
                 <option value="total_spent">Total Spent</option>
                 <option value="customer_since">Customer Since</option>
                 <option value="name">Name</option>
               </select>
-              <button 
+              <button
                 className="sort-order-btn"
                 onClick={toggleSortOrder}
                 title={sortOrder === 'asc' ? 'Ascending' : 'Descending'}
+                type="button"
               >
                 {sortOrder === 'asc' ? '↑' : '↓'}
               </button>
@@ -140,11 +142,44 @@ function CustomerList({
             <label className="checkbox-label">
               <input
                 type="checkbox"
-                checked={filters.purchasedGiftCard}
+                checked={!!filters.winback}
+                onChange={(e) => handleFilterChange('winback', e.target.checked)}
+              />
+              <span>🔁 Winback customers (gap ≥ N days)</span>
+            </label>
+
+            <div style={{ marginTop: 8 }}>
+              <label>
+                Min gap days:
+                <input
+                  type="number"
+                  min="1"
+                  value={filters.winbackDays ?? 60}
+                  disabled={!filters.winback}
+                  onChange={(e) =>
+                    handleFilterChange(
+                      'winbackDays',
+                      e.target.value === '' ? '' : Number(e.target.value)
+                    )
+                  }
+                  style={{ marginLeft: 8, width: 90 }}
+                />
+              </label>
+            </div>
+
+            <small style={{ display: 'block', marginTop: 6, opacity: 0.8 }}>
+              Customers whose most recent order happened at least N days after their previous order.
+            </small>
+
+            <label className="checkbox-label" style={{ marginTop: 10 }}>
+              <input
+                type="checkbox"
+                checked={!!filters.purchasedGiftCard}
                 onChange={(e) => handleFilterChange('purchasedGiftCard', e.target.checked)}
               />
               <span>🎁 Gift Card Purchasers Only</span>
             </label>
+
             <small className="filter-note">
               {filters.purchasedGiftCard && '⚠️ May take longer to load'}
             </small>
@@ -152,45 +187,113 @@ function CustomerList({
         </div>
 
         <div className="quick-filters">
-          <button 
+          <button
             className="quick-filter-btn"
-            onClick={() => onFilterChange({ search: '', orderCount: '1', lastOrderDays: '', minSpent: '', maxSpent: '', maxOrders: '1', purchasedGiftCard: false })}
+            type="button"
+            onClick={() =>
+              setFiltersPartial({
+                search: '',
+                orderCount: '1',
+                maxOrders: '1',
+                lastOrderDays: '',
+                minSpent: '',
+                maxSpent: '',
+                purchasedGiftCard: false,
+                winback: false,
+                winbackDays: filters.winbackDays ?? 60,
+              })
+            }
           >
             🆕 New Customers (1 order)
           </button>
-          <button 
+
+          <button
             className="quick-filter-btn"
-            onClick={() => onFilterChange({ search: '', orderCount: '', lastOrderDays: '60', minSpent: '', maxSpent: '', maxOrders: '', purchasedGiftCard: false })}
+            type="button"
+            onClick={() =>
+              setFiltersPartial({
+                winback: true,
+                winbackDays: 60,
+                purchasedGiftCard: false,
+              })
+            }
           >
-            🔄 Winback (60+ days inactive)
+            🔁 Winback (gap ≥ 60 days)
           </button>
-          <button 
+
+          <button
             className="quick-filter-btn"
-            onClick={() => onFilterChange({ search: '', orderCount: '', lastOrderDays: '', minSpent: '', maxSpent: '', maxOrders: '', purchasedGiftCard: true })}
+            type="button"
+            onClick={() =>
+              setFiltersPartial({
+                purchasedGiftCard: true,
+                winback: false,
+              })
+            }
           >
             🎁 Gift Card Purchasers
           </button>
-          <button 
+
+          <button
             className="quick-filter-btn"
-            onClick={() => onFilterChange({ search: '', orderCount: '5', lastOrderDays: '', minSpent: '500', maxSpent: '', maxOrders: '', purchasedGiftCard: false })}
+            type="button"
+            onClick={() =>
+              setFiltersPartial({
+                orderCount: '5',
+                minSpent: '500',
+                purchasedGiftCard: false,
+                winback: false,
+              })
+            }
           >
             ⭐ VIP Customers (5+ orders, $500+)
           </button>
-          <button 
+
+          <button
             className="quick-filter-btn"
-            onClick={() => onFilterChange({ search: '', orderCount: '10', lastOrderDays: '', minSpent: '', maxSpent: '', maxOrders: '', purchasedGiftCard: false })}
+            type="button"
+            onClick={() =>
+              setFiltersPartial({
+                orderCount: '10',
+                purchasedGiftCard: false,
+                winback: false,
+              })
+            }
           >
             💎 Loyalists (10+ orders)
           </button>
-          <button 
+
+          <button
             className="quick-filter-btn"
-            onClick={() => onFilterChange({ search: '', orderCount: '', lastOrderDays: '90', minSpent: '', maxSpent: '', maxOrders: '', purchasedGiftCard: false })}
+            type="button"
+            onClick={() =>
+              setFiltersPartial({
+                lastOrderDays: '90',
+                purchasedGiftCard: false,
+                winback: false,
+              })
+            }
           >
             ⚠️ At Risk (90+ days inactive)
           </button>
-          <button 
+
+          <button
             className="quick-filter-btn"
-            onClick={() => onFilterChange({ search: '', orderCount: '', lastOrderDays: '', minSpent: '', maxSpent: '', maxOrders: '', purchasedGiftCard: false })}
+            type="button"
+            onClick={() =>
+              onFilterChange({
+                // reset to your defaults (IMPORTANT: include winback defaults too)
+                search: '',
+                orderCount: '',
+                maxOrders: '',
+                lastOrderDays: '',
+                minSpent: '',
+                maxSpent: '',
+                purchasedGiftCard: false,
+                winback: false,
+                winbackDays: 60,
+              })
+            }
           >
             ✖️ Clear All Filters
           </button>
@@ -203,10 +306,7 @@ function CustomerList({
             Customers ({customers.length}
             {customers.length > 0 && customers.length < 1000 && ' matching filters'})
           </h3>
-          <button 
-            className="select-all-btn"
-            onClick={onSelectAll}
-          >
+          <button className="select-all-btn" onClick={onSelectAll} type="button">
             {selectedCustomers.length === customers.length && customers.length > 0
               ? 'Deselect All'
               : 'Select All'}
@@ -239,9 +339,9 @@ function CustomerList({
             <tbody>
               {customers.map((customer) => {
                 const daysSince = getDaysSinceLastOrder(customer.last_order_date);
-                
+
                 return (
-                  <tr 
+                  <tr
                     key={customer.id}
                     className={selectedCustomers.includes(customer.id) ? 'selected' : ''}
                   >
