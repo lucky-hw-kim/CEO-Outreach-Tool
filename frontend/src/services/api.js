@@ -70,18 +70,26 @@ export const previewTemplate = async (templateId, customer) => {
 };
 
 export async function createDrafts(payload) {
+  console.log(API_BASE_URL)
   const res = await fetch(`${API_BASE_URL}/api/create-drafts`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
 
-  // safer parsing (see below)
   const text = await res.text();
-  let data;
-  try { data = text ? JSON.parse(text) : null; }
-  catch { throw new Error(`Non-JSON response (${res.status}): ${text.slice(0, 200)}`); }
 
-  if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
+  // Try JSON; if not JSON, show raw response
+  let data;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    throw new Error(`Backend returned non-JSON (${res.status}): ${text.slice(0, 300)}`);
+  }
+
+  if (!res.ok) {
+    throw new Error(data?.error || `Request failed (${res.status})`);
+  }
+
   return data;
 }
