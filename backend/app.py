@@ -475,107 +475,155 @@ def preview_template():
         'success': True
     })
 
+
 @app.route('/api/create-drafts', methods=['POST'])
 def create_drafts():
-    """Create Gmail drafts for selected customers"""
+    """
+    Create Gmail drafts for selected customers.
+
+    Expects JSON payload:
+    {
+      "template_id": "new_customer" | "winback_60" | ...,
+      "customers": [{ "email": "...", "first_name": "...", "customer_since": "..." }, ...],
+      "boss_email": "hello@spatulafoods.com"   # informational/required by your UI
+    }
+    """
     print("CREATE-DRAFTS HIT", flush=True)
-    data = request.json
-    print("payload keys:", list((data or {}).keys()), flush=True)
+
+    # ---- Parse JSON safely (avoid None issues) ----
+    data = request.get_json(silent=True) or {}
+    print("payload keys:", list(data.keys()), flush=True)
+
     template_id = data.get('template_id')
-    customers = data.get('customers', [])
+    customers = data.get('customers') or []
     boss_email = data.get('boss_email')
-    
+
     if not boss_email:
-        return jsonify({'error': 'Sender email is required', 'success': False}), 400
-    
-    if template_id not in EMAIL_TEMPLATES:
-        return jsonify({'error': 'Template not found', 'success': False}), 404
-    
+        return jsonify({'success': False, 'error': 'Sender email is required'}), 400
+
+    if not template_id or template_id not in EMAIL_TEMPLATES:
+        return jsonify({'success': False, 'error': 'Template not found'}), 404
+
+    if not isinstance(customers, list) or len(customers) == 0:
+        return jsonify({'success': False, 'error': 'No customers provided'}), 400
+
+    # ---- Load credentials (prefer base64 on Render) ----
     try:
-        # Load Gmail credentials
-        creds = None
-        if GMAIL_CREDENTIALS:
-            creds_data = json.loads(GMAIL_CREDENTIALS)
-            creds = Credentials.from_authorized_user_info(creds_data)
+        creds_json = os.environ.get("GMAIL_CREDENTIALS")
 
-        # refresh if possible
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-            print("Refreshed token OK")
+        if not creds_json:
+            b64 = os.environ.get("GMAIL_CREDENTIALS_B64")
+            if b64:
+                creds_json = base64.b64decode(b64).decode("utf-8")
 
-        if not creds or not creds.valid:
+        if not creds_json:
             return jsonify({
-                'error': 'Gmail authentication required.',
                 'success': False,
-                'auth_required': True,
-                'debug': {
-                    'expired': getattr(creds, 'expired', None),
-                    'has_refresh_token': bool(getattr(creds, 'refresh_token', None)),
-                    'token_uri': getattr(creds, 'token_uri', None),
-                    'scopes': getattr(creds, 'scopes', None),
-                }
+                'error': 'Gmail authentication required (missing credentials env var).',
+                'auth_required': True
             }), 401
-        
-        service = build('gmail', 'v1', credentials=creds)
-        template = EMAIL_TEMPLATES[template_id]
-        
-        created_drafts = []
-        errors = []
-        
-        for customer in customers:
-            try:
-                # Format customer since date
-                customer_since = 'N/A'
-                if customer.get('customer_since'):
-                    try:
-                        date_obj = datetime.fromisoformat(customer['customer_since'].replace('Z', '+00:00'))
-                        customer_since = date_obj.strftime('%B %Y')
-                    except:
-                        pass
-                
-                # Create personalized email
-                subject = template['subject'].format(
-                    first_name=customer.get('first_name', 'Valued Customer')
-                )
-                body = template['body'].format(
-                    first_name=customer.get('first_name', 'Valued Customer'),
-                    customer_since=customer_since
-                )
-                
-                # Create MIME message
-                message = MIMEText(body)
-                message['to'] = customer.get('email')
-                message['subject'] = subject
-                
-                # Encode message
-                raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode('utf-8')
-                
-                # Create draft
-                draft = service.users().drafts().create(
-                    userId='me',
-                    body={'message': {'raw': raw_message}}
-                ).execute()
-                
-                created_drafts.append({
-                    'customer': customer.get('email'),
-                    'draft_id': draft['id']
-                })
-                
-            except HttpError as error:
-                errors.append({
-                    'customer': customer.get('email'),
-                    'error': str(error)
-                })
-        
-        return jsonify({
-            'success': True,
-            'created': len(created_drafts),
-            'drafts': created_drafts,
-            'errors': errors
-        })
-    
+
+        creds_data = json.loads(creds_json)
+        creds = Credentials.from_authorized_user_info(creds_data)
+
     except Exception as e:
-        return jsonify({'error': str(e), 'success': False}), 500
+        print("CREDENTIAL LOAD ERROR:", str(e), flush=True)
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': f'Invalid Gmail credentials config: {str(e)}',
+            'auth_required': True
+        }), 500
+
+    # ---- Refresh if expired ----
+    try:
+        if creds and getattr(creds, "expired", False) and getattr(creds, "refresh_token", None):
+            creds.refresh(Request())
+            print("Refreshed Gmail token OK", flush=True)
+    except Exception as e:
+        print("TOKEN REFRESH ERROR:", str(e), flush=True)
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': f'Failed to refresh Gmail token: {str(e)}',
+            'auth_required': True
+        }), 401
+
+    # ---- Validate creds ----
+    if not creds or not creds.valid:
+        return jsonify({
+            'success': False,
+            'error': 'Gmail authentication required.',
+            'auth_required': True,
+            'debug': {
+                'expired': getattr(creds, 'expired', None),
+                'has_refresh_token': bool(getattr(creds, 'refresh_token', None)),
+                'token_uri': getattr(creds, 'token_uri', None),
+                'scopes': getattr(creds, 'scopes', None),
+            }
+        }), 401
+
+    # ---- Build Gmail service ----
+    try:
+        service = build('gmail', 'v1', credentials=creds)
+    except Exception as e:
+        print("GMAIL SERVICE BUILD ERROR:", str(e), flush=True)
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+    template = EMAIL_TEMPLATES[template_id]
+    created_drafts = []
+    errors = []
+
+    # ---- Create drafts ----
+    for customer in customers:
+        try:
+            to_email = (customer or {}).get("email")
+            if not to_email:
+                errors.append({'customer': None, 'error': 'Missing customer email'})
+                continue
+
+            # Format customer_since if present
+            customer_since_str = 'N/A'
+            cs = (customer or {}).get('customer_since')
+            if cs:
+                try:
+                    date_obj = datetime.fromisoformat(cs.replace('Z', '+00:00'))
+                    customer_since_str = date_obj.strftime('%B %Y')
+                except Exception:
+                    customer_since_str = 'N/A'
+
+            first_name = (customer or {}).get('first_name') or 'Valued Customer'
+
+            subject = template['subject'].format(first_name=first_name)
+            body = template['body'].format(first_name=first_name, customer_since=customer_since_str)
+
+            message = MIMEText(body)
+            message['to'] = to_email
+            message['subject'] = subject
+
+            raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode('utf-8')
+
+            draft = service.users().drafts().create(
+                userId='me',
+                body={'message': {'raw': raw_message}}
+            ).execute()
+
+            created_drafts.append({'customer': to_email, 'draft_id': draft.get('id')})
+
+        except HttpError as he:
+            # Gmail API-specific error
+            errors.append({'customer': (customer or {}).get("email"), 'error': str(he)})
+        except Exception as e:
+            errors.append({'customer': (customer or {}).get("email"), 'error': str(e)})
+
+    return jsonify({
+        'success': True,
+        'created': len(created_drafts),
+        'drafts': created_drafts,
+        'errors': errors
+    }), 200
+
 
 @app.route('/api/auth/gmail', methods=['GET'])
 def gmail_auth():
