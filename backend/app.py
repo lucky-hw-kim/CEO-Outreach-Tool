@@ -12,6 +12,7 @@ from email.mime.text import MIMEText
 import base64
 import json
 
+
 # Load environment variables
 load_dotenv()
 
@@ -36,6 +37,15 @@ SHOPIFY_PASSWORD = os.environ.get('SHOPIFY_PASSWORD')
 SHOPIFY_STORE_URL = os.environ.get('SHOPIFY_STORE_URL')
 GMAIL_CREDENTIALS = os.environ.get('GMAIL_CREDENTIALS')
 
+GIFT_CARD_PRODUCT_ID = 7033261424832
+GIFT_CARD_VARIANT_IDS = [
+    41369759252672, 41369759285440, 41369759318208,
+    42311665844416, 42311665877184, 42311665909952,
+    46402146631872, 46402146664640, 43257806815424,
+    42359567843520, 42359567810752, 42359683907776,
+    43739294466240
+]
+
 import time
 from functools import wraps
 
@@ -45,6 +55,20 @@ customer_cache = {
     'data': None,
     'timestamp': None
 }
+gift_card_customer_cache = {
+    'customer_ids': None,
+    'timestamp': None
+}
+
+
+def get_cached_gift_card_customers():
+    if gift_card_customer_cache['customer_ids'] and (time.time() - gift_card_customer_cache['timestamp'] < CACHE_TTL):
+        return gift_card_customer_cache['customer_ids']
+    return None
+
+def cache_gift_card_customers(customer_ids):
+    gift_card_customer_cache['customer_ids'] = customer_ids
+    gift_card_customer_cache['timestamp'] = time.time()
 
 def is_cache_valid():
     """Check if cache is still valid"""
@@ -108,6 +132,47 @@ def shopify_request(endpoint):
     response = shopify_request_with_retry(endpoint)
     return response.json()
 
+def get_customers_who_purchased_gift_card():
+    """Fetch customer IDs who purchased gift cards using Orders API"""
+    cached_ids = get_cached_gift_card_customers()
+    if cached_ids:
+        print(f"Using cached {len(cached_ids)} gift card customers")
+        return cached_ids
+
+    print("Fetching gift card purchasers from Shopify orders...")
+    customer_ids = set()
+    url = f"orders.json?limit=250&status=any&fields=customer,line_items"
+    
+    while url:
+        response = shopify_request_with_retry(url)
+        data = response.json()
+        orders = data.get('orders', [])
+
+        for order in orders:
+            customer = order.get('customer')
+            if not customer:
+                continue
+            customer_id = customer.get('id')
+            for item in order.get('line_items', []):
+                if item.get('product_id') == GIFT_CARD_PRODUCT_ID or item.get('variant_id') in GIFT_CARD_VARIANT_IDS:
+                    customer_ids.add(customer_id)
+                    break
+
+        # Pagination
+        link_header = response.headers.get('Link', '')
+        url = None
+        if 'rel="next"' in link_header:
+            import re
+            next_match = re.search(r'<https://[^>]+/admin/api/[^>]+/orders\.json\?([^>]+)>; rel="next"', link_header)
+            if next_match:
+                url = f"orders.json?{next_match.group(1)}"
+                time.sleep(0.5)
+
+    print(f"Found {len(customer_ids)} gift card customers")
+    cache_gift_card_customers(customer_ids)
+    return customer_ids
+
+
 # Email templates
 EMAIL_TEMPLATES = {
     'new_customer': {
@@ -162,25 +227,26 @@ def get_customers():
         min_spent = request.args.get('min_spent', None)
         max_spent = request.args.get('max_spent', None)
         days_since_order = request.args.get('days_since_order', None)
+        purchased_gift_card = request.args.get('purchased_gift_card', 'false').lower() == 'true'
         sort_by = request.args.get('sort_by', 'last_order_date')
         sort_order = request.args.get('sort_order', 'desc')
-
-        cached_data = get_cached_customers()
-
-        if cached_data is None:
-            return jsonify({
-                'customers': [],
-                'success': True,
-                'count': 0,
-                'total_customers': 0,
-                'from_cache': False,
-                'cache_empty': True,
-                'message': 'Cache is warming. Please refresh shortly.'
-            })
-
-        all_customers = cached_data
-
-
+        force_refresh = request.args.get('refresh', 'false').lower() == 'true'
+        
+        # Check cache first (unless force refresh)
+        if not force_refresh:
+            cached_data = get_cached_customers()
+            if cached_data is not None:
+                all_customers = cached_data
+                print(f"Using {len(all_customers)} customers from cache")
+            else:
+                # Fetch from Shopify
+                all_customers = fetch_all_customers_from_shopify()
+                cache_customers(all_customers)
+        else:
+            print("Force refresh requested, bypassing cache")
+            all_customers = fetch_all_customers_from_shopify()
+            cache_customers(all_customers)
+        
         # Now filter the customers
         customer_data = []
         current_date = datetime.now()
@@ -191,7 +257,8 @@ def get_customers():
             total_spent = float(customer.get('total_spent', 0))
             email = customer.get('email', '')
             created_at = customer.get('created_at')
-            last_order_date = customer.get('last_order_name')
+            last_order_date = customer.get('updated_at')
+            customer_id = customer.get('id')
             
             # Skip if no email (can't do outreach)
             if not email:
@@ -241,13 +308,21 @@ def get_customers():
                 if days_since_last_order is None or days_since_last_order < int(days_since_order):
                     continue
             
+            # Filter: Gift card purchasers
+            # NOTE: This is an expensive operation as it requires checking each customer's orders
+            # Only run if the filter is explicitly enabled
+            if purchased_gift_card:
+                gift_card_customer_ids = get_customers_who_purchased_gift_card()
+                if customer_id not in gift_card_customer_ids:
+                    continue
+            
             customer_info = {
                 'id': customer.get('id'),
                 'email': email,
                 'first_name': customer.get('first_name', ''),
                 'last_name': customer.get('last_name', ''),
                 'order_count': order_count,
-                'last_activity_date': last_order_date,
+                'last_order_date': last_order_date,
                 'customer_since': created_at,
                 'total_spent': total_spent,
                 'days_since_last_order': days_since_last_order
@@ -289,14 +364,15 @@ def get_customers():
             'total_customers': len(all_customers),
             'cache_age': cache_age,
             'cache_ttl': CACHE_TTL,
-            'from_cache': True,
+            'from_cache': not force_refresh and cached_data is not None,
             'filters_applied': {
                 'search': search,
                 'min_orders': min_orders,
                 'max_orders': max_orders,
                 'min_spent': min_spent,
                 'max_spent': max_spent,
-                'days_since_order': days_since_order
+                'days_since_order': days_since_order,
+                'purchased_gift_card': purchased_gift_card
             }
         })
     
@@ -305,15 +381,12 @@ def get_customers():
         return jsonify({'error': str(e), 'success': False}), 500
 
 def fetch_all_customers_from_shopify():
-    """Fetch all customers from Shopify with pagination"""
+    """Fetch all customers from Shopify with pagination - ONLY customers with at least 1 order"""
     all_customers = []
-    url = (
-    'customers.json?limit=250'
-    '&fields=id,email,first_name,last_name,orders_count,total_spent,created_at,updated_at'
-)
+    url = 'customers.json?limit=250'
     page_count = 0
     
-    print(f"Starting to fetch customers from Shopify...")
+    print(f"Starting to fetch customers from Shopify (only those with orders)...")
     
     while url:
         page_count += 1
@@ -346,24 +419,6 @@ def fetch_all_customers_from_shopify():
     
     print(f"Finished fetching. Total customers with orders: {len(all_customers)}")
     return all_customers
-
-@app.route('/api/customers/refresh', methods=['POST'])
-def refresh_customers():
-    try:
-        print("Refreshing customer cache from Shopify...")
-        customers = fetch_all_customers_from_shopify()
-        cache_customers(customers)
-
-        return jsonify({
-            'success': True,
-            'total_customers': len(customers)
-        })
-    except Exception as e:
-        print(f"Refresh failed: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
 
 @app.route('/api/templates', methods=['GET'])
 def get_templates():

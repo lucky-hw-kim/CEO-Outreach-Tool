@@ -10,6 +10,7 @@ export const getCustomers = async (filters = {}) => {
   if (filters.min_spent) params.append('min_spent', filters.min_spent);
   if (filters.max_spent) params.append('max_spent', filters.max_spent);
   if (filters.days_since_order) params.append('days_since_order', filters.days_since_order);
+  if (filters.purchased_gift_card) params.append('purchased_gift_card', filters.purchased_gift_card);
   if (filters.sort_by) params.append('sort_by', filters.sort_by);
   if (filters.sort_order) params.append('sort_order', filters.sort_order);
   if (filters.refresh) params.append('refresh', filters.refresh);

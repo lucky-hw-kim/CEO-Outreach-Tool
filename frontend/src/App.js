@@ -20,7 +20,8 @@ function App() {
     lastOrderDays: '',
     minSpent: '',
     maxSpent: '',
-    search: ''
+    search: '',
+    purchasedGiftCard: false
   });
   const [sortBy, setSortBy] = useState('last_order_date');
   const [sortOrder, setSortOrder] = useState('desc');
@@ -53,6 +54,7 @@ function App() {
         min_spent: filters.minSpent || undefined,
         max_spent: filters.maxSpent || undefined,
         days_since_order: filters.lastOrderDays || undefined,
+        purchased_gift_card: filters.purchasedGiftCard || undefined,
         sort_by: sortBy,
         sort_order: sortOrder,
         refresh: forceRefresh ? 'true' : 'false'

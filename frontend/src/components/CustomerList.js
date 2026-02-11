@@ -135,42 +135,62 @@ function CustomerList({
               </button>
             </div>
           </div>
+
+          <div className="filter-group checkbox-filter">
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={filters.purchasedGiftCard}
+                onChange={(e) => handleFilterChange('purchasedGiftCard', e.target.checked)}
+              />
+              <span>🎁 Gift Card Purchasers Only</span>
+            </label>
+            <small className="filter-note">
+              {filters.purchasedGiftCard && '⚠️ May take longer to load'}
+            </small>
+          </div>
         </div>
 
         <div className="quick-filters">
           <button 
             className="quick-filter-btn"
-            onClick={() => onFilterChange({ search: '', orderCount: '1', lastOrderDays: '', minSpent: '', maxSpent: '', maxOrders: '1' })}
+            onClick={() => onFilterChange({ search: '', orderCount: '1', lastOrderDays: '', minSpent: '', maxSpent: '', maxOrders: '1', purchasedGiftCard: false })}
           >
             🆕 New Customers (1 order)
           </button>
           <button 
             className="quick-filter-btn"
-            onClick={() => onFilterChange({ search: '', orderCount: '', lastOrderDays: '60', minSpent: '', maxSpent: '', maxOrders: '' })}
+            onClick={() => onFilterChange({ search: '', orderCount: '', lastOrderDays: '60', minSpent: '', maxSpent: '', maxOrders: '', purchasedGiftCard: false })}
           >
             🔄 Winback (60+ days inactive)
           </button>
           <button 
             className="quick-filter-btn"
-            onClick={() => onFilterChange({ search: '', orderCount: '5', lastOrderDays: '', minSpent: '500', maxSpent: '', maxOrders: '' })}
+            onClick={() => onFilterChange({ search: '', orderCount: '', lastOrderDays: '', minSpent: '', maxSpent: '', maxOrders: '', purchasedGiftCard: true })}
+          >
+            🎁 Gift Card Purchasers
+          </button>
+          <button 
+            className="quick-filter-btn"
+            onClick={() => onFilterChange({ search: '', orderCount: '5', lastOrderDays: '', minSpent: '500', maxSpent: '', maxOrders: '', purchasedGiftCard: false })}
           >
             ⭐ VIP Customers (5+ orders, $500+)
           </button>
           <button 
             className="quick-filter-btn"
-            onClick={() => onFilterChange({ search: '', orderCount: '10', lastOrderDays: '', minSpent: '', maxSpent: '', maxOrders: '' })}
+            onClick={() => onFilterChange({ search: '', orderCount: '10', lastOrderDays: '', minSpent: '', maxSpent: '', maxOrders: '', purchasedGiftCard: false })}
           >
             💎 Loyalists (10+ orders)
           </button>
           <button 
             className="quick-filter-btn"
-            onClick={() => onFilterChange({ search: '', orderCount: '', lastOrderDays: '90', minSpent: '', maxSpent: '', maxOrders: '' })}
+            onClick={() => onFilterChange({ search: '', orderCount: '', lastOrderDays: '90', minSpent: '', maxSpent: '', maxOrders: '', purchasedGiftCard: false })}
           >
             ⚠️ At Risk (90+ days inactive)
           </button>
           <button 
             className="quick-filter-btn"
-            onClick={() => onFilterChange({ search: '', orderCount: '', lastOrderDays: '', minSpent: '', maxSpent: '', maxOrders: '' })}
+            onClick={() => onFilterChange({ search: '', orderCount: '', lastOrderDays: '', minSpent: '', maxSpent: '', maxOrders: '', purchasedGiftCard: false })}
           >
             ✖️ Clear All Filters
           </button>

@@ -44,12 +44,12 @@ function EmailPreview({ template, customers, bossEmail, onBossEmailChange }) {
 
       <div className="boss-email-section">
         <label>
-          <strong>Boss's Gmail Address:</strong>
+          <strong>Sender Gmail Address:</strong>
           <span className="required">*</span>
         </label>
         <input
           type="email"
-          placeholder="boss@company.com"
+          placeholder="hello@spatulafoods.com"
           value={bossEmail}
           onChange={(e) => onBossEmailChange(e.target.value)}
           className="boss-email-input"
@@ -126,7 +126,7 @@ function EmailPreview({ template, customers, bossEmail, onBossEmailChange }) {
 
         <div className="info-box">
           <strong>ℹ️ Note:</strong> After clicking "Create Gmail Drafts", all emails will be 
-          created as drafts in Gmail. Your boss can review, edit, and send them individually.
+          created as drafts in Gmail. You can review, edit, and send them individually.
         </div>
       </div>
 
