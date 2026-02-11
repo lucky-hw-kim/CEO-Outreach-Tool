@@ -14,6 +14,15 @@ body {
   color: #333;
 }
 
+
+.boss-email-display {
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: #f7f7f7;
+  font-family: inherit;
+}
+
 .app {
   min-height: 100vh;
   display: flex;

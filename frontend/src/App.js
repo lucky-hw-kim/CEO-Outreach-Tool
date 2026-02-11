@@ -5,6 +5,8 @@ import TemplateSelector from './components/TemplateSelector';
 import EmailPreview from './components/EmailPreview';
 import * as api from './services/api';
 
+
+const SENDER_EMAIL = "hello@spatulafoods.com";
 function App() {
   const [customers, setCustomers] = useState([]);
   const [filteredCustomers, setFilteredCustomers] = useState([]);
@@ -25,7 +27,6 @@ function App() {
   });
   const [sortBy, setSortBy] = useState('last_order_date');
   const [sortOrder, setSortOrder] = useState('desc');
-  const [bossEmail, setBossEmail] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [cacheInfo, setCacheInfo] = useState(null);
 
@@ -121,42 +122,35 @@ function App() {
     }
   };
 
-  const handleCreateDrafts = async () => {
-    if (!bossEmail) {
-      alert('Please enter your boss\'s email address');
-      return;
-    }
+const handleCreateDrafts = async () => {
+  try {
+    setLoading(true);
 
-    try {
-      setLoading(true);
-      const selectedCustomerData = customers.filter(c => 
-        selectedCustomers.includes(c.id)
-      );
+    const selectedCustomerData = customers.filter(c =>
+      selectedCustomers.includes(c.id)
+    );
 
-      const result = await api.createDrafts({
-        template_id: selectedTemplate,
-        customers: selectedCustomerData,
-        boss_email: bossEmail
-      });
+    const result = await api.createDrafts({
+      template_id: selectedTemplate,
+      customers: selectedCustomerData,
+      boss_email: SENDER_EMAIL
+    });
 
-      setSuccessMessage(
-        `Successfully created ${result.created} draft emails in Gmail!`
-      );
-      
-      // Reset after success
-      setTimeout(() => {
-        setSelectedCustomers([]);
-        setSelectedTemplate(null);
-        setStep('select');
-        setSuccessMessage('');
-      }, 3000);
+    setSuccessMessage(`Successfully created ${result.created} draft emails in Gmail!`);
 
-    } catch (err) {
-      setError('Failed to create drafts: ' + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+    setTimeout(() => {
+      setSelectedCustomers([]);
+      setSelectedTemplate(null);
+      setStep('select');
+      setSuccessMessage('');
+    }, 3000);
+  } catch (err) {
+    setError('Failed to create drafts: ' + err.message);
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   if (loading && customers.length === 0) {
     return (
@@ -248,13 +242,10 @@ function App() {
             onSelectTemplate={setSelectedTemplate}
           />
         )}
-
         {step === 'preview' && (
           <EmailPreview
             template={templates.find(t => t.id === selectedTemplate)}
             customers={customers.filter(c => selectedCustomers.includes(c.id))}
-            bossEmail={bossEmail}
-            onBossEmailChange={setBossEmail}
           />
         )}
       </div>
@@ -291,10 +282,10 @@ function App() {
         )}
 
         {step === 'preview' && (
-          <button 
+          <button
             className="btn btn-primary"
             onClick={handleCreateDrafts}
-            disabled={!bossEmail}
+            disabled={loading}   // optional: disable while loading
           >
             Create Gmail Drafts ✉️
           </button>

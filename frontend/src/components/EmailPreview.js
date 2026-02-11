@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import * as api from '../services/api';
 
-function EmailPreview({ template, customers, bossEmail, onBossEmailChange }) {
+const SENDER_EMAIL = "hello@spatulafoods.com";
+
+function EmailPreview({ template, customers }) {
   const [previews, setPreviews] = useState([]);
   const [selectedPreview, setSelectedPreview] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadPreviews();
+    // reset index when switching template/customers to avoid out-of-range
+    setSelectedPreview(0);
   }, [template, customers]);
 
   const loadPreviews = async () => {
@@ -45,15 +49,21 @@ function EmailPreview({ template, customers, bossEmail, onBossEmailChange }) {
       <div className="boss-email-section">
         <label>
           <strong>Sender Gmail Address:</strong>
-          <span className="required">*</span>
         </label>
+
+        {/* Option A: just show text */}
+        <div className="boss-email-display">{SENDER_EMAIL}</div>
+
+        {/* Option B: if you want it to look like an input, use a disabled input instead */}
+        {/* 
         <input
           type="email"
-          placeholder="hello@spatulafoods.com"
-          value="hello@spatulafoods.com"
-          onChange={(e) => onBossEmailChange(e.target.value)}
+          value={SENDER_EMAIL}
+          disabled
           className="boss-email-input"
         />
+        */}
+
         <small>Drafts will be created in this Gmail account</small>
       </div>
 
@@ -66,7 +76,7 @@ function EmailPreview({ template, customers, bossEmail, onBossEmailChange }) {
           >
             ← Previous
           </button>
-          
+
           <div className="customer-counter">
             Customer {selectedPreview + 1} of {customers.length}
           </div>
@@ -120,12 +130,12 @@ function EmailPreview({ template, customers, bossEmail, onBossEmailChange }) {
             <li><strong>{customers.length}</strong> draft emails will be created</li>
             <li>Template: <strong>{template.name}</strong></li>
             <li>Each email is personalized with the customer's first name</li>
-            <li>Drafts will appear in <strong>{bossEmail || 'the specified Gmail account'}</strong></li>
+            <li>Drafts will appear in <strong>{SENDER_EMAIL}</strong></li>
           </ul>
         </div>
 
         <div className="info-box">
-          <strong>ℹ️ Note:</strong> After clicking "Create Gmail Drafts", all emails will be 
+          <strong>ℹ️ Note:</strong> After clicking "Create Gmail Drafts", all emails will be
           created as drafts in Gmail. You can review, edit, and send them individually.
         </div>
       </div>
