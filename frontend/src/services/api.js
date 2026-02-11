@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
 export const getCustomers = async (filters = {}) => {
   // Build query string from filters
@@ -69,24 +69,19 @@ export const previewTemplate = async (templateId, customer) => {
   return data;
 };
 
-export const createDrafts = async ({ template_id, customers, boss_email }) => {
-  const response = await fetch(`${API_BASE_URL}/api/create-drafts`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      template_id,
-      customers,
-      boss_email
-    })
+export async function createDrafts(payload) {
+  const res = await fetch(`${API_BASE_URL}/api/create-drafts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
   });
-  
-  const data = await response.json();
-  
-  if (!data.success) {
-    throw new Error(data.error || 'Failed to create drafts');
-  }
-  
+
+  // safer parsing (see below)
+  const text = await res.text();
+  let data;
+  try { data = text ? JSON.parse(text) : null; }
+  catch { throw new Error(`Non-JSON response (${res.status}): ${text.slice(0, 200)}`); }
+
+  if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
   return data;
-};
+}
